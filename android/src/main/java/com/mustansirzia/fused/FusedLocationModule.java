@@ -1,16 +1,22 @@
 package com.mustansirzia.fused;
 
 import android.Manifest;
+import android.app.ActivityManager;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationManager;
+import com.mustansirzia.fused.LocationBroadcastReceiver;
+import com.facebook.react.HeadlessJsTaskService;
 import android.provider.Settings;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
-
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContext;
@@ -32,6 +38,8 @@ import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 
+import java.util.List;
+
 /**
  * Written with ❤! By M on 10/06/17.
  */
@@ -45,21 +53,26 @@ public class FusedLocationModule extends ReactContextBaseJavaModule {
     private final String ERROR_PLAY_SERVICES_NOT_FOUND = "Play services not found.";
     private final String ERROR_UNAUTHORIZED = "Appropriate permissions not given.";
     private final String ERROR_NO_LOCATION_PROVIDER = "No location provider found.";
+    private final ReactApplicationContext reactContext;
     private int mLocationInterval = 15000;
     private int mLocationPriority = LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY;
     private int mLocationFastestInterval = 10000;
     private int mSmallestDisplacement = 0;
     private LocationListener mLocationListener;
     private GoogleApiClient mGoogleApiClient;
+    private LocationBroadcastReceiver  mLocalBroadcastReceiver;
+    private ReactContext mReactContext;
 
     public FusedLocationModule(ReactApplicationContext reactContext) {
         super(reactContext);
+        this.reactContext = reactContext;
     }
 
     @Override
     public String getName() {
         return "FusedLocation";
     }
+
 
     @ReactMethod
     public void setLocationInterval(int mLocationInterval) {
@@ -184,7 +197,19 @@ public class FusedLocationModule extends ReactContextBaseJavaModule {
             mGoogleApiClient.blockingConnect();
             mLocationListener = new LocationListener() {
                 @Override
-                public void onLocationChanged(Location l) {
+                public void onLocationChanged( Location l) {
+//                   WritableMap params = new WritableNativeMap();
+                    mLocalBroadcastReceiver = new LocationBroadcastReceiver();
+                    IntentFilter intentFilter = new IntentFilter();
+                    intentFilter.addAction("LOCATION_EVENT");
+                    reactContext.registerReceiver(mLocalBroadcastReceiver , intentFilter);
+                    Intent customEvent= new Intent("LOCATION_EVENT");
+
+                    customEvent.putExtra("my-extra-data", l.toString());
+                    reactContext.sendBroadcast(customEvent);
+
+//                    reactContext.startService(new Intent(reactContext, LocationService.class));
+
                     sendEvent(getReactApplicationContext(), NATIVE_EVENT, convertLocationToJSON(l));
                 }
             };
